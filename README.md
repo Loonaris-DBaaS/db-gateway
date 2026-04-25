@@ -1,4 +1,3 @@
-FULL README.md (final project)
 # DB Gateway — Multi-Tenant PostgreSQL Gateway (Go)
 
 A high-performance **Database Gateway system** written in Go that acts as the entry point for a multi-tenant Database-as-a-Service (DBaaS) platform.
