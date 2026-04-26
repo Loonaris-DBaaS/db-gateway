@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -36,11 +37,25 @@ func handleConn(conn net.Conn) {
 
 	body := make([]byte, msgLen-8)
 	io.ReadFull(conn, body) //it keeps reading until the buffer(body is full) is full
+
+	// body looks like: "user\0sk_live_abc\0database\0mydb\0\0"
+	// bytes.Split on \0 gives: ["user", "sk_live_abc", "database", "mydb", "", ""]
+	parts := bytes.Split(body, []byte{0})
+
+	params := make(map[string]string)
+	for i := 0; i+1 < len(parts); i += 2 {
+		key := string(parts[i])
+		val := string(parts[i+1])
+		if key == "" {
+			break // we hit the final \0\0 terminator here
+		}
+		params[key] = val
+	}
 	fmt.Printf("msgLen = %d\n", msgLen)
 	fmt.Printf("version = %d\n", version)
-	fmt.Printf("%T\n", body)
-	fmt.Printf("the rest = %s\n", body)
-
+	for k, v := range params {
+		fmt.Printf(" %s = %s\n", k, v)
+	}
 	NUM_CLIENTS.Add(-1)
 	fmt.Printf("Client disconnected %d left\n", NUM_CLIENTS.Load())
 }
