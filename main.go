@@ -32,11 +32,20 @@ func handleConn(conn net.Conn) {
 
 	var msgLen int32
 	binary.Read(conn, binary.BigEndian, &msgLen)
+	if msgLen == 8 {
+		//if it's 8 it's probably SSL
+		var sslCode int32
+		binary.Read(conn, binary.BigEndian, &sslCode)
+		if sslCode == 80877103 {
+			conn.Write([]byte{'N'}) //we will reject the SSL connection(we will add SSL termination in the future)
+		}
+		binary.Read(conn, binary.BigEndian, &msgLen) //now we read the "Startup Message"
+	}
 	var version int32
 	binary.Read(conn, binary.BigEndian, &version)
 
 	body := make([]byte, msgLen-8)
-	io.ReadFull(conn, body) //it keeps reading until the buffer(body is full) is full
+	io.ReadFull(conn, body) //it keeps reading until the buffer(body) is full
 
 	// body looks like: "user\0sk_live_abc\0database\0mydb\0\0"
 	// bytes.Split on \0 gives: ["user", "sk_live_abc", "database", "mydb", "", ""]
@@ -58,4 +67,5 @@ func handleConn(conn net.Conn) {
 	}
 	NUM_CLIENTS.Add(-1)
 	fmt.Printf("Client disconnected %d left\n", NUM_CLIENTS.Load())
+	fmt.Println("################")
 }
