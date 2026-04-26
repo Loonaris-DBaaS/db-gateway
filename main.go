@@ -1,71 +1,10 @@
 package main
 
-import (
-	"bytes"
-	"encoding/binary"
-	"fmt"
-	"io"
-	"net"
-	"sync/atomic"
-)
-
-var NUM_CLIENTS atomic.Int64
+import "github.com/Loonaris-DBaaS/db-gateway/internal/gateway"
 
 func main() {
-	fmt.Println("Gateway listening on :5432")
-	listener, err := net.Listen("tcp", ":5432")
-	if err != nil {
+	server := gateway.NewServer(":5432")
+	if err := server.ListenAndServe(); err != nil {
 		panic(err)
 	}
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			continue
-		}
-		NUM_CLIENTS.Add(1)
-		go handleConn(conn)
-	}
-}
-func handleConn(conn net.Conn) {
-	defer conn.Close()
-	fmt.Printf("Client number %d connected\n", NUM_CLIENTS.Load())
-
-	var msgLen int32
-	binary.Read(conn, binary.BigEndian, &msgLen)
-	if msgLen == 8 {
-		//if it's 8 it's probably SSL
-		var sslCode int32
-		binary.Read(conn, binary.BigEndian, &sslCode)
-		if sslCode == 80877103 {
-			conn.Write([]byte{'N'}) //we will reject the SSL connection(we will add SSL termination in the future)
-		}
-		binary.Read(conn, binary.BigEndian, &msgLen) //now we read the "Startup Message"
-	}
-	var version int32
-	binary.Read(conn, binary.BigEndian, &version)
-
-	body := make([]byte, msgLen-8)
-	io.ReadFull(conn, body) //it keeps reading until the buffer(body) is full
-
-	// body looks like: "user\0sk_live_abc\0database\0mydb\0\0"
-	// bytes.Split on \0 gives: ["user", "sk_live_abc", "database", "mydb", "", ""]
-	parts := bytes.Split(body, []byte{0})
-
-	params := make(map[string]string)
-	for i := 0; i+1 < len(parts); i += 2 {
-		key := string(parts[i])
-		val := string(parts[i+1])
-		if key == "" {
-			break // we hit the final \0\0 terminator here
-		}
-		params[key] = val
-	}
-	fmt.Printf("msgLen = %d\n", msgLen)
-	fmt.Printf("version = %d\n", version)
-	for k, v := range params {
-		fmt.Printf(" %s = %s\n", k, v)
-	}
-	NUM_CLIENTS.Add(-1)
-	fmt.Printf("Client disconnected %d left\n", NUM_CLIENTS.Load())
-	fmt.Println("################")
 }
