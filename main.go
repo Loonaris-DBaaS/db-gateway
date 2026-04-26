@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"sync/atomic"
 )
@@ -21,21 +23,24 @@ func main() {
 		}
 		NUM_CLIENTS.Add(1)
 		go handleConn(conn)
-
 	}
 }
 func handleConn(conn net.Conn) {
-	defer fmt.Println("Client closed connection")
 	defer conn.Close()
 	fmt.Printf("Client number %d connected\n", NUM_CLIENTS.Load())
-	buf := make([]byte, 4096)
-	for {
-		n, err := conn.Read(buf)
-		if err != nil {
-			break // client disconnected
-		}
-		fmt.Printf("got %d bytes\n", n)
-	}
+
+	var msgLen int32
+	binary.Read(conn, binary.BigEndian, &msgLen)
+	var version int32
+	binary.Read(conn, binary.BigEndian, &version)
+
+	body := make([]byte, msgLen-8)
+	io.ReadFull(conn, body) //it keeps reading until the buffer(body is full) is full
+	fmt.Printf("msgLen = %d\n", msgLen)
+	fmt.Printf("version = %d\n", version)
+	fmt.Printf("%T\n", body)
+	fmt.Printf("the rest = %s\n", body)
+
 	NUM_CLIENTS.Add(-1)
 	fmt.Printf("Client disconnected %d left\n", NUM_CLIENTS.Load())
 }
