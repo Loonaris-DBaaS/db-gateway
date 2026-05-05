@@ -25,10 +25,11 @@ func (s *Server) handleConn(conn net.Conn) {
 		return
 	}
 
-	fmt.Printf("msgLen = %d\n", startup.Length)
-	fmt.Printf("version = %d\n", startup.Version)
-	for k, v := range startup.Params {
-		fmt.Printf(" %s = %s\n", k, v)
+	tenantKey := startup.Params["user"]
+	fmt.Printf("user=%s database=%s\n", tenantKey, startup.Params["database"])
+
+	if err := s.tunnel(conn, startup.Raw, tenantKey); err != nil {
+		s.logConnError("tunnel", err)
 	}
 }
 

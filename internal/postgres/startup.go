@@ -14,6 +14,7 @@ type StartupMessage struct {
 	Length  int32
 	Version int32
 	Params  map[string]string
+	Raw     []byte
 }
 
 func ReadStartup(conn net.Conn) (*StartupMessage, error) {
@@ -47,10 +48,16 @@ func ReadStartup(conn net.Conn) (*StartupMessage, error) {
 		return nil, fmt.Errorf("read startup body: %w", err)
 	}
 
+	raw := make([]byte, msgLen)
+	binary.BigEndian.PutUint32(raw[0:4], uint32(msgLen))
+	binary.BigEndian.PutUint32(raw[4:8], uint32(version))
+	copy(raw[8:], body)
+
 	return &StartupMessage{
 		Length:  msgLen,
 		Version: version,
 		Params:  parseParams(body),
+		Raw:     raw,
 	}, nil
 }
 
