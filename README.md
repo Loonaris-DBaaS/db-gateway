@@ -1,186 +1,77 @@
 # DB Gateway — Multi-Tenant PostgreSQL Gateway (Go)
 
-A high-performance **Database Gateway system** written in Go that acts as the entry point for a multi-tenant Database-as-a-Service (DBaaS) platform.
+A high-performance TCP proxy that routes PostgreSQL connections to isolated per-tenant databases based on API key inspection. Serves as the single entry point for the Loonaris DBaaS platform.
 
-It provides secure authentication, tenant routing, and transparent TCP proxying between external PostgreSQL clients and internal database infrastructure.
+## How It Works
 
----
+```text
+psql "postgres://sk_live_a3f9...64hex..._rw@db.loonaris.tech:5432/app"
 
-# What is this project?
-
-This system is the **core networking layer of a DBaaS platform**, similar in concept to systems used by platforms like Supabase.
-
-It solves the problem of:
-
-> How do multiple external users securely connect to isolated PostgreSQL databases using a single public endpoint?
-
----
-
-# Architecture
-
-
-External Client (psql / app)
-↓
-DB Gateway (Go TCP Proxy)
-↓
-Authentication + Tenant Resolver
-↓
-PgBouncer (per tenant)
-↓
-CloudNative PostgreSQL Cluster
-
-
----
-
-# Core Components
-
-## 1. TCP Gateway (this service)
-- Accepts PostgreSQL connections
-- Reads startup packets
-- Extracts authentication token
-- Routes connection to correct backend
-
----
-
-## 2. Authentication Layer
-- API token-based authentication
-- Token → Tenant mapping
-- Secure validation before routing
-
----
-
-## 3. Tenant Routing Engine
-- Maps tenant → PgBouncer instance
-- Supports multi-tenant isolation
-- Dynamic backend resolution
-
----
-
-## 4. Connection Proxy (Core Engine)
-- Bidirectional TCP tunneling
-- Zero-copy streaming using `io.Copy`
-- Handles thousands of concurrent connections
-
----
-
-## 5. PgBouncer Integration
-- Connection pooling per tenant
-- Reduces PostgreSQL load
-- Improves scalability and performance
-
----
-
-## 6. PostgreSQL Backend
-- Managed via CloudNativePG
-- Each tenant has isolated database cluster
-
----
-
-# Authentication Flow
-
-```
-Client connects:
-postgres://sk_live_token@db.gateway.com:5432
-     ↓
-Gateway extracts token from username
-     ↓
-Validates token in registry
-     ↓
-Resolves tenant
-     ↓
-Connects to PgBouncer
-     ↓
-Forwards traffic
+  Gateway extracts user field from PostgreSQL startup packet
+  → Parses sk_live_BASEKEY_MODE format
+  → SHA256 hashes the base key
+  → Looks up route in cache (60s TTL) or control plane API
+  → Routes _rw to PgBouncer RW (Primary), _ro to PgBouncer RO (Replica)
+  →Establishes bidirectional TCP tunnel
 ```
 
-## Connection Lifecycle
-
-1. TCP connection established
-2. Startup packet received
-3. Token extracted
-4. Tenant resolved
-5. Backend selected
-6. TCP tunnel established
-7. Bidirectional streaming begins
-
----
-
-# Getting Started
-
-## Prerequisites
-
-- Go 1.20+
-- PostgreSQL or PgBouncer for testing
-
-## Installation
-
-Clone the repository:
+## Quick Start
 
 ```bash
-git clone https://github.com/Loonaris-DBaaS/db-gateway.git
-cd db-gateway
-```
-
-## Building
-
-```bash
+# Build and run locally
 go build -o db-gateway ./
+PORT=5432 CONTROL_PLANE_URL=http://localhost:3001 INTERNAL_GATEWAY_SECRET=secret ./db-gateway
+
+# Or run with Docker Compose (full test stack)
+docker compose up --build
 ```
 
-## Running
+## Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `5432` | TCP listen port |
+| `CONTROL_PLANE_URL` | `https://api.loonaris.internal` | Express backend URL for route lookups |
+| `INTERNAL_GATEWAY_SECRET` | — | Bearer token for `/internal/routes` auth |
+
+## Project Structure
+
+```text
+internal/
+├── gateway/
+│   ├── server.go        # TCP server, config, graceful shutdown
+│   ├── session.go       # Connection handler: SSL/GSSENC, key parsing, read deadline
+│   ├── tunnel.go        # RW/RO routing, bidirectional io.Copy tunnel
+│   ├── key.go           # sk_live_[64hex]_[rw|ro] parser + SHA256 hashing
+│   ├── cache.go         # sync.Map with 60s TTL for route caching
+│   ├── api.go           # HTTP client for control plane route lookups
+│   └── singleflight.go  # Deduplication for concurrent cache misses
+├── postgres/
+│   └── startup.go       # PostgreSQL startup packet + SSL/GSSENC handling
+main.go                   # Entry point, env var config
+```
+
+## Testing
 
 ```bash
-./db-gateway
+# Unit tests
+go test ./... -v
+
+# Docker integration test stack
+docker compose up --build
+
+# Connect as tenant 1 (RW)
+psql "host=localhost port=35432 user=sk_live_aaaa...64a_rw dbname=app_test1"
+
+# Connect as tenant 1 (RO)
+psql "host=localhost port=35432 user=sk_live_aaaa...64a_ro dbname=app_test1"
 ```
 
-The gateway listens on `0.0.0.0:5432` by default.
+## Documentation
 
----
+- **[docs/GATEWAY_IMPL.md](docs/GATEWAY_IMPL.md)** — Implementation plan & file structure
+- **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — EKS deployment, Kubernetes manifests, GitOps/CI-CD, architecture
 
-# Project Structure
+## License
 
-```
-.
-├── main.go                           # Entry point
-├── internal/
-│   ├── gateway/
-│   │   ├── server.go                # TCP server and connection handling
-│   │   ├── session.go               # Session management
-│   │   └── tunnel.go                # Bidirectional TCP tunneling
-│   └── postgres/
-│       └── startup.go               # PostgreSQL startup packet parsing
-├── go.mod                           # Go module definition
-└── README.md                        # This file
-```
-
----
-
-# Configuration
-
-Currently, the gateway is configured via code. Future versions will support:
-
-- Configuration files (YAML/TOML)
-- Environment variables
-- Dynamic backend resolution
-
----
-
-# Development
-
-### Running Tests
-
-```bash
-go test ./...
-```
-
-### Building Docker Image
-
-```bash
-docker build -t db-gateway .
-```
-
----
-
-# License
-
-Licensed under the MIT License. See [LICENSE](./LICENSE) for details.
+MIT

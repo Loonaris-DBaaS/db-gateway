@@ -1,0 +1,26 @@
+{
+  "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb": {
+    "tenant_id": "project-test1",
+    "pgbouncer_rw_host": "pgbouncer-test1-rw",
+    "pgbouncer_rw_port": 5432,
+    "pgbouncer_ro_host": "pgbouncer-test1-ro",
+    "pgbouncer_ro_port": 5432,
+    "status": "active"
+  },
+  "a0fab1377f49a759b57f63318262ebe89fabfc990e8e93ceac2984561482b9d4": {
+    "tenant_id": "project-test2",
+    "pgbouncer_rw_host": "pgbouncer-test2-rw",
+    "pgbouncer_rw_port": 5432,
+    "pgbouncer_ro_host": "pgbouncer-test2-ro",
+    "pgbouncer_ro_port": 5432,
+    "status": "active"
+  },
+  "52b6419d27bd7f547cee3b92f8c17a908b8a49601ecbec161e5030de1dfe9e0a": {
+    "tenant_id": "project-test3",
+    "pgbouncer_rw_host": "pgbouncer-test3-rw",
+    "pgbouncer_rw_port": 5432,
+    "pgbouncer_ro_host": "pgbouncer-test3-ro",
+    "pgbouncer_ro_port": 5432,
+    "status": "active"
+  }
+}

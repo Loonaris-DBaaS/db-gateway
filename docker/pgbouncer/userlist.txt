@@ -1,0 +1,6 @@
+"tenant1_example_rw" ""
+"tenant1_example_ro" ""
+"tenant2_example_rw" ""
+"tenant2_example_ro" ""
+"tenant3_example_rw" ""
+"tenant3_example_ro" ""
