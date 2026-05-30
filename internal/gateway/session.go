@@ -5,19 +5,26 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/Loonaris-DBaaS/db-gateway/internal/postgres"
 )
+
+const readDeadline = 30 * time.Second
 
 func (s *Server) handleConn(conn net.Conn) {
 	defer conn.Close()
 	defer func() {
 		s.numClients.Add(-1)
-		fmt.Printf("Client disconnected %d left\n", s.numClients.Load())
-		fmt.Println("################")
+		fmt.Printf("Client disconnected, %d remaining\n", s.numClients.Load())
 	}()
 
-	fmt.Printf("Client number %d connected\n", s.numClients.Load())
+	fmt.Printf("Client connected, total %d, remote=%s\n", s.numClients.Load(), conn.RemoteAddr())
+
+	if err := conn.SetReadDeadline(time.Now().Add(readDeadline)); err != nil {
+		fmt.Printf("set read deadline: %v\n", err)
+		return
+	}
 
 	startup, err := postgres.ReadStartup(conn)
 	if err != nil {
@@ -26,9 +33,23 @@ func (s *Server) handleConn(conn net.Conn) {
 	}
 
 	tenantKey := startup.Params["user"]
-	fmt.Printf("user=%s database=%s\n", tenantKey, startup.Params["database"])
+	if tenantKey == "" {
+		fmt.Printf("missing user field in startup packet\n")
+		return
+	}
 
-	if err := s.tunnel(conn, startup.Raw, tenantKey); err != nil {
+	parsed, err := ParseTenantKey(tenantKey)
+	if err != nil {
+		fmt.Printf("invalid key format from remote=%s\n", conn.RemoteAddr())
+		return
+	}
+
+	fmt.Printf("key_hash=%s... mode=%s database=%s remote=%s\n",
+		parsed.KeyHash[:12], parsed.Mode, startup.Params["database"], conn.RemoteAddr())
+
+	conn.SetDeadline(time.Time{})
+
+	if err := s.tunnel(conn, startup.Raw, parsed); err != nil {
 		s.logConnError("tunnel", err)
 	}
 }

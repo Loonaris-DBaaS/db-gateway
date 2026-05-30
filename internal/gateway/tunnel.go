@@ -4,22 +4,31 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 )
 
-var tenantDatabases = map[string]string{
-	"sk_live_tenant1": "localhost:5434",
-	"sk_live_tenant2": "localhost:5435",
-	"sk_live_tenant3": "localhost:5436",
-}
-
-func (s *Server) tunnel(client net.Conn, startupRaw []byte, tenantKey string) error {
-	addr, exists := tenantDatabases[tenantKey]
-	if !exists {
-		return fmt.Errorf("tenant not found: %s", tenantKey)
-	}
-	backend, err := net.Dial("tcp", addr)
+func (s *Server) tunnel(client net.Conn, startupRaw []byte, parsed *ParsedKey) error {
+	route, err := s.lookupRoute(parsed.KeyHash)
 	if err != nil {
-		return fmt.Errorf("failed to dial backend for tenant %s: %w", tenantKey, err)
+		return fmt.Errorf("route lookup: %w", err)
+	}
+
+	if route.Status != "active" {
+		return fmt.Errorf("tenant status=%s, expected active", route.Status)
+	}
+
+	var targetAddr string
+	if parsed.Mode == "ro" {
+		targetAddr = fmt.Sprintf("%s:%d", route.PgBouncerROHost, route.PgBouncerROPort)
+	} else {
+		targetAddr = fmt.Sprintf("%s:%d", route.PgBouncerRWHost, route.PgBouncerRWPort)
+	}
+
+	fmt.Printf("routing mode=%s -> %s\n", parsed.Mode, targetAddr)
+
+	backend, err := net.DialTimeout("tcp", targetAddr, 10*time.Second)
+	if err != nil {
+		return fmt.Errorf("dial backend %s: %w", targetAddr, err)
 	}
 	defer backend.Close()
 
@@ -39,6 +48,7 @@ func (s *Server) tunnel(client net.Conn, startupRaw []byte, tenantKey string) er
 		done <- struct{}{}
 	}()
 
+	<-done
 	<-done
 	return nil
 }

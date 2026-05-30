@@ -9,6 +9,7 @@ import (
 )
 
 const sslRequestCode int32 = 80877103
+const gssencRequestCode int32 = 80877104
 
 type StartupMessage struct {
 	Length  int32
@@ -24,8 +25,21 @@ func ReadStartup(conn net.Conn) (*StartupMessage, error) {
 	}
 
 	if msgLen == 8 {
-		if err := handleSSLRequest(conn); err != nil {
-			return nil, err
+		code, err := readInt32(conn)
+		if err != nil {
+			return nil, fmt.Errorf("read request code: %w", err)
+		}
+
+		if code == sslRequestCode {
+			if _, err := conn.Write([]byte{'N'}); err != nil {
+				return nil, fmt.Errorf("write SSL rejection: %w", err)
+			}
+		} else if code == gssencRequestCode {
+			if _, err := conn.Write([]byte{'N'}); err != nil {
+				return nil, fmt.Errorf("write GSSENC rejection: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("unsupported request code: %d", code)
 		}
 
 		msgLen, err = readInt32(conn)
@@ -61,21 +75,6 @@ func ReadStartup(conn net.Conn) (*StartupMessage, error) {
 	}, nil
 }
 
-func handleSSLRequest(conn net.Conn) error {
-	code, err := readInt32(conn)
-	if err != nil {
-		return fmt.Errorf("read SSL request code: %w", err)
-	}
-
-	if code == sslRequestCode {
-		if _, err := conn.Write([]byte{'N'}); err != nil {
-			return fmt.Errorf("write SSL rejection: %w", err)
-		}
-	}
-
-	return nil
-}
-
 func readInt32(conn net.Conn) (int32, error) {
 	var v int32
 	if err := binary.Read(conn, binary.BigEndian, &v); err != nil {
@@ -99,4 +98,3 @@ func parseParams(body []byte) map[string]string {
 
 	return params
 }
-
