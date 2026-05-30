@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-gateway
+  namespace: system-plane
+  labels:
+    app: db-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: db-gateway
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: db-gateway
+    spec:
+      tolerations:
+        - key: "dedicated"
+          operator: "Equal"
+          value: "system"
+          effect: "NoSchedule"
+      nodeSelector:
+        node-role.loonaris.tech/system: "true"
+      containers:
+        - name: db-gateway
+          image: loonaris/db-gateway:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5432
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "5432"
+            - name: CONTROL_PLANE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: db-gateway-secrets
+                  key: control-plane-url
+            - name: INTERNAL_GATEWAY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: db-gateway-secrets
+                  key: gateway-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]
+      terminationGracePeriodSeconds: 45
