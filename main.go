@@ -10,9 +10,11 @@ import (
 
 func main() {
 	cfg := gateway.Config{
-		Address:         fmt.Sprintf(":%d", envInt("PORT", 5432)),
-		ControlPlaneURL: envStr("CONTROL_PLANE_URL", "https://loonaris.tech/api"),
-		GatewaySecret:   envStr("INTERNAL_GATEWAY_SECRET", "static_shared_cluster_secret_token_here"),
+		Address:           fmt.Sprintf(":%d", envInt("PORT", 5432)),
+		ControlPlaneURL:   envStr("CONTROL_PLANE_URL", "https://loonaris.tech/api"),
+		GatewaySecret:     envStr("INTERNAL_GATEWAY_SECRET", "static_shared_cluster_secret_token_here"),
+		BackendDBUser:     envStr("BACKEND_DB_USER", "cloud_user"),
+		BackendDBPassword: envStr("BACKEND_DB_PASSWORD", ""),
 	}
 
 	server := gateway.NewServer(cfg)

@@ -47,9 +47,16 @@ func (s *Server) handleConn(conn net.Conn) {
 	fmt.Printf("key_hash=%s... mode=%s database=%s remote=%s\n",
 		parsed.KeyHash[:12], parsed.Mode, startup.Params["database"], conn.RemoteAddr())
 
+	// libpq defaults the database to the username when -d is omitted; since the
+	// username here is the sk_live key, fall back to the tenant's app database.
+	database := startup.Params["database"]
+	if database == "" || database == tenantKey {
+		database = "app"
+	}
+
 	conn.SetDeadline(time.Time{})
 
-	if err := s.tunnel(conn, startup.Raw, parsed); err != nil {
+	if err := s.tunnel(conn, parsed, database); err != nil {
 		s.logConnError("tunnel", err)
 	}
 }

@@ -6,7 +6,7 @@ metadata:
   labels:
     app: db-gateway
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: db-gateway
@@ -20,16 +20,11 @@ spec:
       labels:
         app: db-gateway
     spec:
-      tolerations:
-        - key: "dedicated"
-          operator: "Equal"
-          value: "system"
-          effect: "NoSchedule"
       nodeSelector:
-        node-role.loonaris.tech/system: "true"
+        role: system
       containers:
         - name: db-gateway
-          image: loonaris/db-gateway:latest
+          image: 592858827449.dkr.ecr.eu-west-3.amazonaws.com/db-gateway:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5432
@@ -47,6 +42,13 @@ spec:
                 secretKeyRef:
                   name: db-gateway-secrets
                   key: gateway-secret
+            - name: BACKEND_DB_USER
+              value: "cloud_user"
+            - name: BACKEND_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-gateway-secrets
+                  key: backend-db-password
           resources:
             requests:
               cpu: 100m

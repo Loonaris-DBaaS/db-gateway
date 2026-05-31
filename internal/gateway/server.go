@@ -16,6 +16,8 @@ type Config struct {
 	Address           string
 	ControlPlaneURL   string
 	GatewaySecret     string
+	BackendDBUser     string
+	BackendDBPassword string
 	ShutdownTimeout   time.Duration
 }
 
